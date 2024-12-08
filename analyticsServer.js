@@ -1,30 +1,28 @@
 const amqp = require('amqplib');
-const mongoose = require('mongoose');
 const dotenv = require("dotenv").config();
 const connectDB = require('./dbConnection')
-const ApiAnalyticsModel =require('./Model/API_AnalyticsSchema')
+const {
+    handleApiCallLogs,
+    handleErrorLogs 
+}   = require('./Helpers/APIDataHandler')
 
 connectDB()
-
-
 
 async function consumeMessages() {
     const connection = await amqp.connect('amqp://localhost');
     const channel = await connection.createChannel();
-    await channel.assertQueue('analytics_queue');
+    await channel.assertQueue('analyticsQueue');
 
-    channel.consume('analytics_queue', async (msg) => {
-        if (msg !== null) {        
-            const message = JSON.parse(msg.content.toString());
-            console.log("Message: ", message)
-            try{
-                const ApiAnalytics = new ApiAnalyticsModel(message);
-                await ApiAnalytics.save();
-                channel.ack(msg);
-            }catch(err){
-                console.log("Error : ",err)
+    channel.consume('analyticsQueue', async (msg) => {
+        console.log(msg.content.toString());
+        if (msg !== null) {     
+            const data = JSON.parse(msg.content.toString());
+            if(data.type === "apiCallLog"){
+                await handleApiCallLogs(data.data);
+            }else if(data.type === "errorLog"){
+                await handleErrorLogs(data.data);
             }
-
+            channel.ack(msg)
         }
     });
 
